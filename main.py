@@ -7,8 +7,8 @@ def read_node_and_link():
     nodes = {}
     links = {}
 
-    csv_reader_node = csv.reader(open("./data/Node.csv"))
-    csv_reader_link = csv.reader(open("./data/Link.csv"))
+    csv_reader_node = csv.reader(open("./data/Node.csv", encoding="utf-8"))
+    csv_reader_link = csv.reader(open("./data/Link.csv", encoding="utf-8"))
     next(csv_reader_node)
     next(csv_reader_link)
 
@@ -131,6 +131,8 @@ def get_adjacency(graph):
             res[source].append({"target": target, "rel": rel, "category": nodes[target]['category']})
         else:
             res[source] = [{"target": target, "rel": rel, "category": nodes[target]['category']}]
+    with open("data/tmp.json", 'w', encoding='utf-8') as f:
+        f.write(json.dumps(res, indent=4))
     return res
 
 
@@ -164,6 +166,124 @@ def get_core(graph, adjacency):
     return core_nodes
 
 
+val = {
+    "r_cert": 4,
+    "r_subdomain": 4,
+    "r_request_jump": 4,
+    "r_dns_a": 4,
+    "r_whois_name": 3,
+    "r_whois_email": 3,
+    "r_whois_phone": 3,
+    "r_cert_chain": 2,
+    "r_cname": 2,
+    "r_asn": 1,
+    "r_cidr": 1
+}
+
+
+def custom_key(path):
+    with open("data/tmp.json", 'r') as f:
+        adjacency = json.loads(f.read())
+
+    path_len = len(path)
+    res = 0
+
+    if path_len == 4:
+        score = 50
+    if path_len == 3:
+        score = 80
+    if path_len == 2:
+        score = 120
+    for i in range(path_len - 1):
+        start = path[i]
+        end = path[i + 1]
+        # print("path = ", path)
+        # print("start = ", start)
+        # print("end = ", end)
+        for target in adjacency[str(start)]:
+            # print("target = ", target['target'])
+            if target["target"] == end:
+                rel = target["rel"]
+                break
+        res += score * val[rel]
+
+    return res / path_len
+
+
+def getpath(paths):
+    paths.sort(key=custom_key)
+    paths.reverse()
+    return paths
+
+
+def bfskey(links, source_id, target_id):
+    queue = [(source_id, 4)]
+    pathnode = {}
+    k = 4
+    hop = 4
+    path = []
+    flag = 1
+    index = 0
+    while len(queue) != 0:
+        id, jump = queue.pop(0)
+        if id in links:
+            for neighbour in links[id]:  # 得到一个list，里面是target 和 relation的二元组
+                current_jump = min(jump, hop)  # current_jump 当前该结点展开的跳数
+
+                if current_jump == 0:
+                    if neighbour[0] in pathnode:
+                        pathnode[str(neighbour[0])] += [id]
+                    else:
+                        pathnode[str(neighbour[0])] = [id]
+                    if neighbour[0] == target_id:  # 找到
+                        # 回溯
+                        Apath = []
+                        nextnode = target_id
+                        nownode = neighbour[0]
+                        while nextnode != source_id:
+                            Apath.append(nextnode)
+                            nextnode = pathnode[str(nownode)][0]
+                            del pathnode[str(nownode)][0]
+                            nownode = nextnode
+
+                        Apath.append(source_id)
+                        path.append(Apath)
+
+                else:
+                    if neighbour[0] in pathnode:
+                        pathnode[str(neighbour[0])] += [id]
+                    else:
+                        pathnode[str(neighbour[0])] = [id]
+                    if neighbour[0] == target_id and flag:  # 找到
+                        # 回溯
+                        Apath = []
+                        nextnode = target_id
+                        nownode = neighbour[0]
+
+                        while nextnode != source_id:
+                            Apath.append(nextnode)
+                            nextnode = pathnode[str(nownode)][0]
+                            del pathnode[str(nownode)][0]
+                            nownode = nextnode
+
+                        Apath.append(source_id)
+                        path.append(Apath)
+                        hop = 0
+                        flag = 0
+                        continue
+
+                    queue += [(neighbour[0], current_jump - 1)]
+
+    return path
+
+
+def reverse_paths(paths):
+    # paths: [path1, path2, ...]
+    for path in paths:
+        path.reverse()
+    return paths
+
+
 if __name__ == '__main__':
     nodes, links = read_node_and_link()
 
@@ -174,6 +294,26 @@ if __name__ == '__main__':
     adjacency = get_adjacency(echart)
     core_nodes = get_core(echart, adjacency)
     print(core_nodes)
+    length = len(core_nodes)
+    alinks = {}
+    for line in echart["links"]:
+        relation = line["value"]
+        source = line["source"]
+        target = line["target"]
+        if source in alinks:
+            alinks[source] += [(target, relation)]
+        else:
+            alinks[source] = [(target, relation)]
+    for i in range(0, length):
+        for j in range(i + 1, length):
+            # print("i = ", i)
+            # print("j = ", j)
+            temp = bfskey(alinks, core_nodes[i], core_nodes[j])
+            temp = reverse_paths(temp)
+            # print("temp = ", temp)
+            paths = getpath(temp)
+            print(paths)
+
     # with open("./out.json", "w") as f:
     #     json.dump(x, f)
 
