@@ -53,11 +53,28 @@ def relation_hop():
     return hop
 
 
-def bfs(links, source_id, k=3):
+def bfs_connect(links,source,destination,k=10):
+    """
+    10跳之内两个初始的domain是否能够有可达的边
+    """
+    queue = [(source,k)]
+    while len(queue) != 0:
+        id,jump = queue.pop(0)
+        if id in links:
+            for neighbour in links[id]:
+                if neighbour == destination:
+                    return True
+                else:
+                    if jump > 0:
+                        queue += [(neighbour[0], jump - 1)]  # 跳了一步后，剩余可以跳的步数-1，深度+1，继续放到点展开的queue中
+    return False
+
+
+def bfs(links, source_id_list, k=3):
     """
     bfs 找到k跳以内的三元组
     """
-    queue = [(source_id, 3)]
+    queue = [(source_id, k) for source_id in source_id_list]
     triple = []
     hop = relation_hop()
     while len(queue) != 0:
@@ -71,6 +88,20 @@ def bfs(links, source_id, k=3):
                     queue += [(neighbour[0], current_jump - 1)]  # 跳了一步后，剩余可以跳的步数-1，深度+1，继续放到点展开的queue中
                     triple += [(id, neighbour[0], neighbour[1])]  # 一跳之后存储源目的边三元组
     return triple
+
+
+def category2svg(category):
+    dic = {"Domain": "image://./icon/Domain.svg",
+           "Whois_Name": "image://./icon/Whois_Name.svg ",
+           "Whois_Email": "image://./icon/Whois_Email.svg ",
+           "Whois_Phone": "image://./icon/Whois_Phone.svg",
+           "IP": "image://./icon/IP.svg",
+           "Cert": "image://./icon/Cert.svg",
+           "ASN": "image://./icon/ASN.svg",
+           "IP_C": "image://./icon/IP_C.svg",
+           }
+    return dic[category]
+
 
 
 def process_echart(nodes, triple):
@@ -107,7 +138,7 @@ def process_echart(nodes, triple):
     # echart node
     for node in node_map:
         node_echart += [{"id": node_map[node], "category": type_map[nodes[node]["type"]],
-                         "symbolSize": random.randint(10, 50), "name": node[-5:]}]
+                         "symbolSize": 40, "name": node[-5:], "symbol":category2svg(nodes[node]["type"])}]
     # echart category
     categories = sorted(type_map.items(), key=lambda kv: kv[1])
     for category in categories:
@@ -287,10 +318,16 @@ def reverse_paths(paths):
 if __name__ == '__main__':
     nodes, links = read_node_and_link()
 
+
     link_source = []
-    link_source += ["Domain_c58c149eec59bb14b0c102a0f303d4c20366926b5c3206555d2937474124beb9"]
-    triple = bfs(links, link_source[0])
+    link_source += ["IP_400c19e584976ff2a35950659d4d148a3d146f1b71692468132b849b0eb8702c"]
+    link_source += ["Domain_b10f98a9b53806ccd3a5ee45676c7c09366545c5b12aa96955cde3953e7ad058"]
+    print(bfs_connect(links,link_source[0],link_source[1]))
+    print(bfs_connect(links, link_source[1], link_source[0]))
+    triple = bfs(links, link_source)
     echart = process_echart(nodes, triple)
+    with open("./out.json", "w") as f:
+        json.dump(echart, f)
     adjacency = get_adjacency(echart)
     core_nodes = get_core(echart, adjacency)
     print(core_nodes)
@@ -314,8 +351,7 @@ if __name__ == '__main__':
             paths = getpath(temp)
             print(paths)
 
-    # with open("./out.json", "w") as f:
-    #     json.dump(x, f)
+
 
     # link_source[1] = "Domain_f3554b666038baffa5814c319d3053ee2c2eb30d31d0ef509a1a463386b69845"  #
     # link_source[2] = "IP_400c19e584976ff2a35950659d4d148a3d146f1b71692468132b849b0eb8702c"

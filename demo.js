@@ -48,7 +48,11 @@ function showKG(query) {
                                 textStyle: {
                                     fontSize: 20
                                 }
-                            }
+                            },
+                            show: true,
+                                formatter: function (x) {
+                                    return x.data.name;
+                                }
                         },
                         force: {
                             repulsion: 2500,
@@ -62,17 +66,9 @@ function showKG(query) {
                                 color: '#C0C0C0',
                             }
                         },
-                        edgeLabel: {
-                            normal: {
-                                show: true,
-                                formatter: function (x) {
-                                    return x.data.name;
-                                }
-                            }
-                        },
                         label: {
                             normal: {
-                                show: true,
+                                show: false,
                                 textStyle: {}
                             }
                         },
