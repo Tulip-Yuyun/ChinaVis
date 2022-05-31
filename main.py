@@ -1,6 +1,7 @@
 import csv
 import json
 import random
+import pickle
 
 
 def read_node_and_link():
@@ -53,13 +54,13 @@ def relation_hop():
     return hop
 
 
-def bfs_connect(links,source,destination,k=10):
+def bfs_connect(links, source, destination, k=10):
     """
-    10跳之内两个初始的domain是否能够有可达的边
+    k跳之内两个node是否能够有可达的边
     """
-    queue = [(source,k)]
+    queue = [(source, k)]
     while len(queue) != 0:
-        id,jump = queue.pop(0)
+        id, jump = queue.pop(0)
         if id in links:
             for neighbour in links[id]:
                 if neighbour == destination:
@@ -82,12 +83,51 @@ def bfs(links, source_id_list, k=3):
         if id in links:
             for neighbour in links[id]:  # 得到一个list，里面是target 和 relation的二元组
                 current_jump = min(jump, hop[neighbour[1]])  # current_jump 当前该结点展开的跳数
-                if current_jump == 1:
+                if current_jump == 0:
                     triple += [(id, neighbour[0], neighbour[1])]  # 一跳之后存储源目的边三元组,但是不参与后面的展开了，你的使命到此为止～
                 else:
                     queue += [(neighbour[0], current_jump - 1)]  # 跳了一步后，剩余可以跳的步数-1，深度+1，继续放到点展开的queue中
                     triple += [(id, neighbour[0], neighbour[1])]  # 一跳之后存储源目的边三元组
     return triple
+
+
+def bfs_no_limitation(links, source_id_list, k=3):
+    queue = [(source_id, k) for source_id in source_id_list]
+    triple = []
+    while len(queue) != 0:
+        id, jump = queue.pop(0)
+        if id in links:
+            for neighbour in links[id]:  # 得到一个list，里面是target 和 relation的二元组
+                if jump == 0:
+                    triple += [(id, neighbour[0], neighbour[1])]  # 一跳之后存储源目的边三元组,但是不参与后面的展开了，你的使命到此为止
+                else:
+                    triple += [(id, neighbour[0], neighbour[1])]  # 一跳之后存储源目的边三元组,但是不参与后面的展开了，你的使命到此为止～
+                    queue += [(neighbour[0], jump - 1)]  # 跳了一步后，剩余可以跳的步数-1，深度+1，继续放到点展开的queue中
+
+    return triple
+
+
+def statistic(nodes, triple):
+    node_sum = {}
+    node_set = set()
+    for source_id, target_id, relation in triple:
+        source_type = nodes[source_id]["type"]  # 取出当前节点的type
+        target_type = nodes[target_id]["type"]
+        if source_id not in node_set:
+            node_set.add(source_id)
+            if source_type not in node_sum:
+                node_sum[source_type] = 1
+            else:
+                node_sum[source_type] += 1
+        if target_id not in node_set:
+            node_set.add(target_id)
+            if target_type not in node_sum:
+                node_sum[target_type] = 1
+            else:
+                node_sum[target_type] += 1
+    for i in node_sum:
+        print(f"type:{i},count:{node_sum[i]}")
+    print(f"link_num:{len(triple)}")
 
 
 def category2svg(category):
@@ -101,7 +141,6 @@ def category2svg(category):
            "IP_C": "image://./icon/IP_C.svg",
            }
     return dic[category]
-
 
 
 def process_echart(nodes, triple):
@@ -138,7 +177,7 @@ def process_echart(nodes, triple):
     # echart node
     for node in node_map:
         node_echart += [{"id": node_map[node], "category": type_map[nodes[node]["type"]],
-                         "symbolSize": 40, "name": node[-5:], "symbol":category2svg(nodes[node]["type"])}]
+                         "symbolSize": 40, "name": node[-5:], "symbol": category2svg(nodes[node]["type"])}]
     # echart category
     categories = sorted(type_map.items(), key=lambda kv: kv[1])
     for category in categories:
@@ -316,15 +355,26 @@ def reverse_paths(paths):
 
 
 if __name__ == '__main__':
-    nodes, links = read_node_and_link()
+    nodes, links = pickle.load(open("./data/data.pkl", "rb"))
 
+    # nodes, links = read_node_and_link()
+    # data = [nodes,links]
+    # pickle.dump(data, open("./data/data.pkl", "wb"))
 
     link_source = []
-    link_source += ["IP_400c19e584976ff2a35950659d4d148a3d146f1b71692468132b849b0eb8702c"]
-    link_source += ["Domain_b10f98a9b53806ccd3a5ee45676c7c09366545c5b12aa96955cde3953e7ad058"]
+    link_source += ["Domain_c58c149eec59bb14b0c102a0f303d4c20366926b5c3206555d2937474124beb9"]
+    link_source += ["Domain_f3554b666038baffa5814c319d3053ee2c2eb30d31d0ef509a1a463386b69845"]
     print(bfs_connect(links,link_source[0],link_source[1]))
     print(bfs_connect(links, link_source[1], link_source[0]))
+
+    print('------no limitation------')
+    triple = bfs_no_limitation(links,link_source)
+    statistic(nodes, triple)
+    print('------with limitation------')
     triple = bfs(links, link_source)
+    statistic(nodes, triple)
+    '''
+    
     echart = process_echart(nodes, triple)
     with open("./out.json", "w") as f:
         json.dump(echart, f)
@@ -350,8 +400,7 @@ if __name__ == '__main__':
             # print("temp = ", temp)
             paths = getpath(temp)
             print(paths)
-
-
+    '''
 
     # link_source[1] = "Domain_f3554b666038baffa5814c319d3053ee2c2eb30d31d0ef509a1a463386b69845"  #
     # link_source[2] = "IP_400c19e584976ff2a35950659d4d148a3d146f1b71692468132b849b0eb8702c"
