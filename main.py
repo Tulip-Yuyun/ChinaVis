@@ -60,19 +60,18 @@ def bfs_combine(nodes, adjlist, source_id_list):
                     target = tri[1]
                     # check source, type and neighbour
                     if source == id and nodes[neighbour]["type"] == nodes[target]["type"]:
-                        if neighbour != target:
-                            if neighbour in adjlist and target in adjlist and adjlist[neighbour] == adjlist[target]:
-                                triple[index][3] += 1
-                                flag = True
-                                break
-                            if neighbour not in adjlist and target not in adjlist:
-                                triple[index][3] += 1
-                                flag = True
-                                break
+                        if neighbour in adjlist and target in adjlist and adjlist[neighbour] == adjlist[target]:
+                            triple[index][3] += 1
+                            flag = True
+                            break
+                        if neighbour not in adjlist and target not in adjlist:
+                            triple[index][3] += 1
+                            flag = True
+                            break
                 # no "same" entity
                 if not flag:
                     queue += [neighbour]
-                    triple += [[id, neighbour, relation,1]]
+                    triple += [[id, neighbour, relation, 1]]
     return triple
 
 
