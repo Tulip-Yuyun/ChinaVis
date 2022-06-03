@@ -35,6 +35,47 @@ def read_node_and_link():
     return nodes, links
 
 
+def adjacency_list(triple):
+    adjlist = {}
+    for source, target, relation in triple:
+        if source in adjlist:
+            adjlist[source] += [(target, relation)]
+        else:
+            adjlist[source] = [(target, relation)]
+    return adjlist
+
+
+# queue source_id + 同质的结点个数（neighbour 一样 +type也一样）
+def bfs_combine(nodes, adjlist, source_id_list):
+    queue = [source_id for source_id in source_id_list]
+    triple = []
+    while len(queue) != 0:
+        id = queue.pop(0)
+        if id in adjlist:
+            for neighbour, relation in adjlist[id]:
+                # check if there is no "same" entity in triple
+                flag = False
+                for index, tri in enumerate(triple):
+                    source = tri[0]
+                    target = tri[1]
+                    # check source, type and neighbour
+                    if source == id and nodes[neighbour]["type"] == nodes[target]["type"]:
+                        if neighbour != target:
+                            if neighbour in adjlist and target in adjlist and adjlist[neighbour] == adjlist[target]:
+                                triple[index][3] += 1
+                                flag = True
+                                break
+                            if neighbour not in adjlist and target not in adjlist:
+                                triple[index][3] += 1
+                                flag = True
+                                break
+                # no "same" entity
+                if not flag:
+                    queue += [neighbour]
+                    triple += [[id, neighbour, relation,1]]
+    return triple
+
+
 # 判断该条relation下应该挖掘几跳
 # hop里面的数值对应多少跳
 def relation_hop():
@@ -110,7 +151,9 @@ def bfs_no_limitation(links, source_id_list, k=3):
 def statistic(nodes, triple):
     node_sum = {}
     node_set = set()
-    for source_id, target_id, relation in triple:
+    for tri in triple:
+        source_id = tri[0]
+        target_id = tri[1]
         source_type = nodes[source_id]["type"]  # 取出当前节点的type
         target_type = nodes[target_id]["type"]
         if source_id not in node_set:
@@ -127,7 +170,7 @@ def statistic(nodes, triple):
                 node_sum[target_type] += 1
     for i in node_sum:
         print(f"type:{i},count:{node_sum[i]}")
-    print(f"link_num:{len(triple)}")
+    print(f"link_num(may have duplicate):{len(triple)}")
 
 
 def category2svg(category):
@@ -151,10 +194,15 @@ def process_echart(nodes, triple):
     link_echart = []
     category_echart = []
     type_map = {}
-    type_index = 0
+    type_index = 1
     node_map = {}
-    node_index = 0
-    for source, target, relation in triple:
+    node_index = 1
+    duplicate_map = {}  # key is the product of the source index and target index, value is the relation
+    for tri in triple:
+        source = tri[0]
+        target = tri[1]
+        relation = tri[2]
+        count = tri[3]  # duplicate count
         source_type = nodes[source]["type"]  # get source type
         target_type = nodes[target]["type"]  # get target type
         # map node type to index
@@ -171,8 +219,17 @@ def process_echart(nodes, triple):
         if target not in node_map:
             node_map[target] = node_index
             node_index += 1
-        # echart link
-        link_echart += [{"source": node_map[source], "target": node_map[target], "value": relation}]
+        # echart link, may have duplicate
+        # if there is a relation from a to b, then a relation from b to a is impossible
+        key = node_map[source] * node_map[target]
+        if key in duplicate_map and relation in duplicate_map[key]:
+            continue
+        else:
+            link_echart += [{"source": node_map[source], "target": node_map[target], "value": relation}]
+            if key in duplicate_map:
+                duplicate_map[key] += [relation]
+            else:
+                duplicate_map[key] = [relation]
 
     # echart node
     for node in node_map:
@@ -364,43 +421,46 @@ if __name__ == '__main__':
     link_source = []
     link_source += ["Domain_c58c149eec59bb14b0c102a0f303d4c20366926b5c3206555d2937474124beb9"]
     link_source += ["Domain_f3554b666038baffa5814c319d3053ee2c2eb30d31d0ef509a1a463386b69845"]
-    print(bfs_connect(links,link_source[0],link_source[1]))
+    print(bfs_connect(links, link_source[0], link_source[1]))
     print(bfs_connect(links, link_source[1], link_source[0]))
 
     print('------no limitation------')
-    triple = bfs_no_limitation(links,link_source)
+    triple = bfs_no_limitation(links, link_source)
     statistic(nodes, triple)
     print('------with limitation------')
     triple = bfs(links, link_source)
     statistic(nodes, triple)
-    '''
-    
+    print('------with compression------')
+    adjlist = adjacency_list(triple)
+    triple = bfs_combine(nodes, adjlist, link_source)
+    statistic(nodes, triple)
+
     echart = process_echart(nodes, triple)
     with open("./out.json", "w") as f:
         json.dump(echart, f)
-    adjacency = get_adjacency(echart)
-    core_nodes = get_core(echart, adjacency)
-    print(core_nodes)
-    length = len(core_nodes)
-    alinks = {}
-    for line in echart["links"]:
-        relation = line["value"]
-        source = line["source"]
-        target = line["target"]
-        if source in alinks:
-            alinks[source] += [(target, relation)]
-        else:
-            alinks[source] = [(target, relation)]
-    for i in range(0, length):
-        for j in range(i + 1, length):
-            # print("i = ", i)
-            # print("j = ", j)
-            temp = bfskey(alinks, core_nodes[i], core_nodes[j])
-            temp = reverse_paths(temp)
-            # print("temp = ", temp)
-            paths = getpath(temp)
-            print(paths)
-    '''
+    #
+    # adjacency = get_adjacency(echart)
+    # core_nodes = get_core(echart, adjacency)
+    # print(core_nodes)
+    # length = len(core_nodes)
+    # alinks = {}
+    # for line in echart["links"]:
+    #     relation = line["value"]
+    #     source = line["source"]
+    #     target = line["target"]
+    #     if source in alinks:
+    #         alinks[source] += [(target, relation)]
+    #     else:
+    #         alinks[source] = [(target, relation)]
+    # for i in range(0, length):
+    #     for j in range(i + 1, length):
+    #         # print("i = ", i)
+    #         # print("j = ", j)
+    #         temp = bfskey(alinks, core_nodes[i], core_nodes[j])
+    #         temp = reverse_paths(temp)
+    #         # print("temp = ", temp)
+    #         paths = getpath(temp)
+    #         print(paths)
 
     # link_source[1] = "Domain_f3554b666038baffa5814c319d3053ee2c2eb30d31d0ef509a1a463386b69845"  #
     # link_source[2] = "IP_400c19e584976ff2a35950659d4d148a3d146f1b71692468132b849b0eb8702c"
