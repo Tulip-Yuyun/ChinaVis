@@ -18,9 +18,13 @@ def read_node_and_link():
         relation = line[0]
         source = line[1]
         target = line[2]
+        if target in links:
+            links[target] +=[(source,None)]#A->B,为了triple搜索方变，保存成双向边
+        elif target not in links:
+            links[target] = [(source, None)]
         if source in links:
             links[source] += [(target, relation)]
-        else:
+        elif source not in links:
             links[source] = [(target, relation)]
 
     # read node
@@ -96,7 +100,7 @@ def relation_hop():
 
 def bfs_connect(links, source, destination, k=10):
     """
-    k跳之内两个node是否能够有可达的边
+    k跳之内两个node是否能够有可达的边（判断初始的团伙点是否有边可达）
     """
     queue = [(source, k)]
     while len(queue) != 0:
@@ -411,15 +415,15 @@ def reverse_paths(paths):
 
 
 if __name__ == '__main__':
-    nodes, links = pickle.load(open("./data/data.pkl", "rb"))
+    #nodes, links = pickle.load(open("./data/data.pkl", "rb"))
 
-    # nodes, links = read_node_and_link()
-    # data = [nodes,links]
-    # pickle.dump(data, open("./data/data.pkl", "wb"))
+    nodes, links = read_node_and_link()
+    data = [nodes,links]
+    pickle.dump(data, open("./data/data.pkl", "wb"))
 
     link_source = []
-    link_source += ["Domain_c58c149eec59bb14b0c102a0f303d4c20366926b5c3206555d2937474124beb9"]
-    link_source += ["Domain_f3554b666038baffa5814c319d3053ee2c2eb30d31d0ef509a1a463386b69845"]
+    link_source += ["IP_7e730b193c2496fc908086e8c44fc2dbbf7766e599fabde86a4bcb6afdaad66e"]
+    link_source += ["Cert_6724539e5c0851f37dcf91b7ac85cb35fcd9f8ba4df0107332c308aa53d63bdb"]
     print(bfs_connect(links, link_source[0], link_source[1]))
     print(bfs_connect(links, link_source[1], link_source[0]))
 
