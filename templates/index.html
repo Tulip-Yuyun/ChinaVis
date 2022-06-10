@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8"/>
+    <title>ECharts</title>
+    <script src="../static/js/jquery.js"></script>
+    <script src="../static/js/echarts.js"></script>
+</head>
+
+<body>
+<select id="select_index">
+    <option value="1" selected>团伙1</option>
+    <option value="2">团伙2</option>
+    <option value="3">团伙3</option>
+    <option value="4">团伙4</option>
+    <option value="5">团伙5</option>
+</select>
+<button id="process_btn">处理</button>
+<button id="revoke_btn">撤销上一次操作</button>
+<span>结点个数: <span id="node_count">0</span></span>
+<span>关系个数: <span id="link_count">0</span></span>
+<button id="export_btn">导出</button>
+<div id="main" style="width: 1200px;height:800px;"></div>
+</body>
+
+<script type="text/javascript">
+    var chartDom = document.getElementById('main');
+    var myChart = echarts.init(chartDom);
+
+    $("#process_btn").click(function () {
+        var index = $("#select_index").val();
+        var option;
+
+        myChart.showLoading();
+        $.ajax({
+            url: "./" + index,
+            success: function (graph) {
+                console.log(graph);
+                myChart.hideLoading();
+                $("#node_count").text(graph.nodes.length);
+                $("#link_count").text(graph.links.length);
+                option = {
+                    tooltip: {},
+                    legend: [{
+                        data: graph.categories.map(function (x) {
+                            return x.name;
+                        })
+                    }],
+                    series: [{
+                        type: 'graph',
+                        layout: 'force',
+                        data: graph.nodes,
+                        links: graph.links,
+                        categories: graph.categories,
+                        roam: true,
+                        edgeSymbol: ['none', 'arrow'],
+                        // edgeSymbolSize: 2,
+                        force: {
+                            repulsion: 50,
+                            edgeLength: 6,
+                        },
+                        label: {
+                            show: true,
+                            textStyle: {
+                                fontSize: 8
+                            },
+                            formatter: function (x) {
+                                if (x.data.start === true) {
+                                    return "S";
+                                } else if (x.data.expand === true) {
+                                    return "E";
+                                } else {
+                                    return "";
+                                }
+                            }
+                        },
+                        draggable: true,
+                        edgeLabel: {
+                            normal: {
+                                show: false,
+                                textStyle: {
+                                    fontSize: 8
+                                },
+                                formatter: function (x) {
+                                    return x.data.value
+                                }
+                            }
+                        },
+                        lineStyle: {
+                            normal: {
+                                color: 'target',
+                                width: 1
+                            }
+                        }
+                    }]
+                };
+                myChart.setOption(option);
+                myChart.on('click', function (params) {
+                    console.log(params)
+                    if (params.name != null) {
+                        $.ajax({
+                            type: 'POST',
+                            contentType: "application/json",
+                            url: "./expand",
+                            data: JSON.stringify({
+                                "expand_node": params.data.id,
+                                "nodes": myChart.getOption().series[0].data,
+                                "links": myChart.getOption().series[0].links
+                            }),
+                            success: function (graph) {
+                                $("#node_count").text(graph.nodes.length);
+                                $("#link_count").text(graph.links.length);
+                                myChart.setOption({
+                                    series: {
+                                        data: graph.nodes,
+                                        links: graph.links,
+                                    }
+                                });
+                            }
+                        })
+                    }
+                });
+            }
+        });
+    });
+    $("#export_btn").click(function () {
+        $.ajax({
+            type: 'POST',
+            contentType: "application/json",
+            url: "./export",
+            data: JSON.stringify({
+                "nodes": myChart.getOption().series[0].data,
+                "links": myChart.getOption().series[0].links,
+                "categories": myChart.getOption().series[0].categories,
+            }),
+            success: function () {
+                console.log("导出成功!")
+            }
+        })
+    });
+    $("#revoke_btn").click(function () {
+        $.ajax({
+            type: 'POST',
+            contentType: "application/json",
+            url: "./revoke",
+            success: function (graph) {
+                $("#node_count").text(graph.nodes.length);
+                $("#link_count").text(graph.links.length);
+                myChart.setOption({
+                    series: {
+                        data: graph.nodes,
+                        links: graph.links,
+                    }
+                });
+            }
+        })
+    });
+</script>
+</html>
